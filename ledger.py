@@ -25,7 +25,11 @@ CREATE TABLE IF NOT EXISTS trades (
     confidence  TEXT,           -- high / normal / low
     notes       TEXT,
     status      TEXT DEFAULT 'open',   -- open / closed
-    pnl         REAL DEFAULT 0
+    pnl         REAL DEFAULT 0,
+    risk_reward REAL,           -- pnl / risk basis (see equity_at_trade / margin note)
+    exit_price  REAL,
+    close_ts    TEXT,
+    equity_at_trade REAL        -- account equity at entry; no-SL risk basis for new trades
 );
 """
 
@@ -40,6 +44,11 @@ def _conn(s: Settings) -> sqlite3.Connection:
 def init(s: Settings) -> None:
     with _conn(s) as c:
         c.executescript(_SCHEMA)
+        cols = {r[1] for r in c.execute("PRAGMA table_info(trades)")}
+        for col, decl in (("risk_reward", "REAL"), ("exit_price", "REAL"), ("close_ts", "TEXT"),
+                          ("equity_at_trade", "REAL")):
+            if col not in cols:
+                c.execute(f"ALTER TABLE trades ADD COLUMN {col} {decl}")
 
 
 def add_trade(s: Settings, **kw: Any) -> int:
@@ -60,6 +69,10 @@ def add_trade(s: Settings, **kw: Any) -> int:
         "notes": kw.get("notes"),
         "status": kw.get("status") or "open",
         "pnl": kw.get("pnl") or 0,
+        "risk_reward": kw.get("risk_reward"),
+        "exit_price": kw.get("exit_price"),
+        "close_ts": kw.get("close_ts"),
+        "equity_at_trade": kw.get("equity_at_trade"),
     }
     cols = ",".join(fields)
     ph = ",".join("?" for _ in fields)
@@ -68,11 +81,22 @@ def add_trade(s: Settings, **kw: Any) -> int:
         return cur.lastrowid
 
 
-def close_trade(s: Settings, ticket: int, pnl: float) -> int:
+def get_open_trade(s: Settings, ticket: int) -> Optional[Dict]:
+    init(s)
+    with _conn(s) as c:
+        row = c.execute(
+            "SELECT * FROM trades WHERE ticket=? AND status='open' ORDER BY id DESC LIMIT 1",
+            (ticket,)).fetchone()
+        return dict(row) if row else None
+
+
+def close_trade(s: Settings, ticket: int, pnl: float, risk_reward: Optional[float] = None,
+                 exit_price: Optional[float] = None) -> int:
     with _conn(s) as c:
         cur = c.execute(
-            "UPDATE trades SET status='closed', pnl=? WHERE ticket=? AND status='open'",
-            (pnl, ticket))
+            "UPDATE trades SET status='closed', pnl=?, risk_reward=COALESCE(?, risk_reward), "
+            "exit_price=?, close_ts=? WHERE ticket=? AND status='open'",
+            (pnl, risk_reward, exit_price, datetime.now().isoformat(timespec="seconds"), ticket))
         return cur.rowcount
 
 

@@ -37,7 +37,7 @@ def _i(name: str, default: int) -> int:
 class Settings:
     mt5_host: str = "localhost"
     mt5_port: int = 8001
-    symbols: List[str] = field(default_factory=lambda: ["XAUUSD", "BTCUSD"])
+    symbols: List[str] = field(default_factory=lambda: ["XAUUSD", "XAUUSDp", "BTCUSD", "BTCUSDTp"])
 
     start_capital: float = 1000.0
     target_capital: float = 40000.0
@@ -50,18 +50,19 @@ class Settings:
     pushover_token: str = ""
     pushover_user: str = ""
 
+    project_root: str = _ROOT
     state_dir: str = STATE_DIR
     ledger_path: str = LEDGER_PATH
     state_path: str = STATE_PATH
 
     @classmethod
     def load(cls) -> "Settings":
-        syms = [s.strip().upper() for s in _get("SYMBOLS", "XAUUSD,BTCUSD").split(",") if s.strip()]
+        syms = [s.strip().upper() for s in _get("SYMBOLS", "XAUUSD,XAUUSDp,BTCUSD,BTCUSDTp").split(",") if s.strip()]
         os.makedirs(STATE_DIR, exist_ok=True)
         return cls(
             mt5_host=_get("MT5_HOST", "localhost"),
             mt5_port=_i("MT5_PORT", 8001),
-            symbols=syms or ["XAUUSD"],
+            symbols=syms or ["XAUUSD", "XAUUSDp"],
             start_capital=_f("START_CAPITAL", 1000.0),
             target_capital=_f("TARGET_CAPITAL", 40000.0),
             working_days=_i("WORKING_DAYS", 13),

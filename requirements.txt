@@ -1,5 +1,6 @@
 rpyc>=5.0
 python-dotenv>=1.0
 requests>=2.28
+flask>=2.3
 # Install on the LINUX box that runs alongside the MT5 terminal:
 # mt5linux

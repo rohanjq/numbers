@@ -1,0 +1,124 @@
+#!/bin/bash
+# Ledger command — manage trades grouped by symbol+side
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV="$SCRIPT_DIR/.venv/bin/python"
+LEDGER_CSV="$SCRIPT_DIR/ledger.csv"
+
+if [ ! -f "$VENV" ]; then
+    echo "❌ Virtual env not found. Run: cd $SCRIPT_DIR && uv venv"
+    exit 1
+fi
+
+cmd="${1:-help}"
+
+case "$cmd" in
+    update|sync)
+        echo "📥 Refreshing open positions from MT5..."
+        $VENV "$SCRIPT_DIR/scripts/update_ledger.py" "${2:-ledger.csv}"
+        ;;
+    close)
+        if [ -z "$2" ] || [ -z "$3" ]; then
+            echo "❌ Usage: ledger close <SYMBOL> <BUY|SELL> [rationale] [followed_from]"
+            echo "   Example: ledger close XAUUSD BUY \"hit TP at 4125\" \"my_signal\""
+            exit 1
+        fi
+        echo "📝 Logging close: $2 $3"
+        $VENV "$SCRIPT_DIR/scripts/on_close_group.py" "$2" "$3" "$4" "$5"
+        ;;
+    edit|ui)
+        echo "✏️  Opening CLI editor"
+        echo "   Controls: ↑↓ move | L/R scroll | E edit | W save | Q quit"
+        echo ""
+        $VENV "$SCRIPT_DIR/scripts/edit_ledger.py"
+        ;;
+    sl)
+        shift
+        echo "🎯 Setting SL/TP for all positions..."
+        $VENV "$SCRIPT_DIR/scripts/set_sl.py" "$@"
+        ;;
+    trail)
+        trail_step="${2:-2.0}"
+        echo "🏃 Starting trailing stop monitor (trail=$trail_step USD)"
+        echo "   Controls:"
+        echo "     P = pause/resume trailing"
+        echo "     S = set fixed SL (stops trailing)"
+        echo "     R = refresh positions"
+        echo "     Q = quit"
+        echo ""
+        $VENV "$SCRIPT_DIR/scripts/trail.py" --trail "$trail_step"
+        ;;
+    view|cat|show)
+        if [ -f "$LEDGER_CSV" ]; then
+            echo "📊 Current ledger:"
+            column -t -s',' "$LEDGER_CSV" | head -20
+            rows=$(tail -n +2 "$LEDGER_CSV" 2>/dev/null | wc -l)
+            echo ""
+            echo "   ($rows trades in $LEDGER_CSV)"
+        else
+            echo "❌ No ledger.csv yet. Run: ledger update"
+        fi
+        ;;
+    help|"")
+        cat << 'HELP'
+📖 Ledger Command — Manage grouped trades
+
+USAGE:
+  ledger update              Refresh open positions from MT5 API
+  ledger close <S> <B>      Log a closed position to CSV
+  ledger edit                Open CLI editor to edit rationale & followed_from
+  ledger sl <PRICE> [SYM]   Set stop loss on all positions (default: XAUUSD)
+  ledger trail [USD]        Live trailing stop monitor (default: $2 trail step)
+  ledger view                Show current ledger in terminal
+  ledger help                Show this help
+
+EXAMPLES:
+  # After manually closing all XAUUSD BUY legs in MT5:
+  ledger close XAUUSD BUY "hit TP at 4125" "my_signal"
+
+  # Open CLI editor, edit rationale/followed_from:
+  ledger edit
+
+  # Set stop loss on all XAUUSD positions:
+  ledger sl 4100
+
+  # Set stop loss on all BTCUSD positions + TP:
+  ledger sl 62000 BTCUSD 65000
+
+  # Live trailing stop monitor (trail by $2 per tick):
+  ledger trail 2.0
+
+  # Pull fresh open positions from MT5:
+  ledger update
+
+  # View ledger in terminal:
+  ledger view
+
+WORKFLOW:
+  1. Trade in MT5 (enter multiple legs of a position)
+  2. Set fixed SL: ledger sl <PRICE> [SYMBOL]
+     OR run trailing SL: ledger trail 2.0 (auto-updates SL every second)
+  3. In trail monitor: P to pause/resume SL updates, Q to quit
+  4. Close all legs of a position: ledger close SYMBOL SIDE [why] [source]
+  5. Edit details later: ledger edit (↑↓ move | L/R scroll | E edit | W save)
+  6. Check for new opens: ledger update
+  7. View anytime: ledger view
+
+CSV COLUMNS:
+  - symbol, side, num_trades, open_time, first_trade
+  - avg_entry_price, current_price, avg_xir_price, total_volume
+  - pnl, risk_reward_ratio, wallet_at_entry, total_capital
+  - status (OPEN/CLOSED)
+  - rationale (you edit this 🖊️)
+  - followed_from (you edit this 🖊️)
+  - ticket_ids
+
+DIR: $SCRIPT_DIR/ledger.csv
+HELP
+        ;;
+    *)
+        echo "❌ Unknown command: $cmd"
+        echo "   Run: ledger help"
+        exit 1
+        ;;
+esac

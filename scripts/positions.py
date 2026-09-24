@@ -28,7 +28,17 @@ def main() -> int:
     if not ok:
         return 1
 
-    positions = br.positions(args.symbol)
+    symbol = args.symbol
+    positions = br.positions(symbol)
+    if not positions and symbol:
+        for suffix in ("p", "r", "m", ".pro", ".raw"):
+            alt = symbol + suffix
+            positions = br.positions(alt)
+            if positions:
+                print(f"💡 No positions for {symbol}, using {alt}")
+                break
+    if not positions:
+        positions = br.positions()  # try unfiltered
     if not positions:
         print("No open positions.")
         return 0

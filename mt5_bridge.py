@@ -128,7 +128,18 @@ class Bridge:
     def positions(self, symbol: Optional[str] = None) -> List[Any]:
         try:
             with self._lock:
-                return list(self.mt5.positions_get(symbol=symbol) or [])
+                # When no symbol filter, get ALL positions. mt5linux's
+                # positions_get(symbol=None) can be flaky — try each
+                # known symbol as well as requesting all.
+                if symbol is not None:
+                    return list(self.mt5.positions_get(symbol=symbol) or [])
+                results: list = list(self.mt5.positions_get() or [])
+                if not results:
+                    for sym in self.s.symbols:
+                        results = list(self.mt5.positions_get(symbol=sym) or [])
+                        if results:
+                            break
+                return results
         except Exception:
             return []
 
@@ -154,13 +165,40 @@ class Bridge:
         return out
 
     # ---- writes ----
-    def set_sl(self, position, sl: float, tp: Optional[float] = None) -> tuple[bool, str]:
+    def open_order(self, symbol: str, side: str, volume: float,
+                   sl: float | None = None, tp: float | None = None,
+                   comment: str = "") -> tuple[bool, int | None, str]:
+        """Place a new market order. Returns (ok, ticket, message)."""
+        tick = self.tick(symbol)
+        req = {
+            "action": self.mt5.TRADE_ACTION_DEAL,
+            "symbol": symbol,
+            "type": (self.mt5.ORDER_TYPE_BUY if side.upper() == "BUY"
+                     else self.mt5.ORDER_TYPE_SELL),
+            "volume": float(volume),
+            "price": tick.ask if side.upper() == "BUY" else tick.bid,
+            "sl": float(sl) if sl is not None else 0.0,
+            "tp": float(tp) if tp is not None else 0.0,
+            "type_time": self.mt5.ORDER_TIME_GTC,
+            "type_filling": self.mt5.ORDER_FILLING_FOK,
+            "comment": str(comment)[:27],
+        }
+        with self._lock:
+            r = self.mt5.order_send(req)
+        ok = r is not None and r.retcode == self.mt5.TRADE_RETCODE_DONE
+        ticket = int(r.order) if ok else None
+        return ok, ticket, (f"#{ticket} {side.upper()} {volume}" if ok
+                            else f"FAILED: {getattr(r, 'comment', r)}")
+
+    def set_sl(self, position, sl=None, tp: Optional[float] = None) -> tuple[bool, str]:
+        current_sl = float(getattr(position, "sl", 0.0))
+        current_tp = float(getattr(position, "tp", 0.0))
         req = {
             "action": self.mt5.TRADE_ACTION_SLTP,
             "symbol": position.symbol,
             "position": int(position.ticket),
-            "sl": float(sl),
-            "tp": float(tp) if tp is not None else float(getattr(position, "tp", 0.0)),
+            "sl": float(sl) if sl is not None else current_sl,
+            "tp": float(tp) if tp is not None else current_tp,
         }
         with self._lock:
             r = self.mt5.order_send(req)

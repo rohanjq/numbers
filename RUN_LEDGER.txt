@@ -1,0 +1,102 @@
+╔════════════════════════════════════════════════════════════════════════╗
+║                       LEDGER COMMAND QUICK START                       ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+From /root/numbers/:
+
+┌─ VIEW YOUR TRADES ─────────────────────────────────────────────────────┐
+│ ./ledger view                                                           │
+│   → Shows all open + closed trades in a table                          │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌─ AFTER CLOSING ALL LEGS IN MT5 ────────────────────────────────────────┐
+│ ./ledger close XAUUSD BUY "TP hit at 4125" "my_signal"                │
+│   → Logs the grouped close to CSV                                      │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌─ EDIT TRADE DETAILS ───────────────────────────────────────────────────┐
+│ ./ledger edit                                                           │
+│   → CLI editor: ↑↓ navigate | E edit | W save | Q quit                │
+│   → Edit: rationale, followed_from                                     │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌─ SET STOP LOSS (ONE-TIME) ─────────────────────────────────────────────┐
+│ ./ledger sl 4100               # All XAUUSD (default)                  │
+│ ./ledger sl 62000 BTCUSD       # All BTCUSD                             │
+│ ./ledger sl 4100 XAUUSD 4120   # SL=4100, TP=4120                      │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌─ LIVE TRAILING STOP MONITOR ───────────────────────────────────────────┐
+│ ./ledger trail 2.0             # Trail by $2 per step                  │
+│   → Updates SL every second as P/L changes                             │
+│   → Controls:                                                           │
+│       P = pause/resume                                                  │
+│       S = set fixed SL (stops trailing)                                │
+│       R = refresh                                                       │
+│       Q = quit                                                          │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌─ REFRESH OPEN POSITIONS ───────────────────────────────────────────────┐
+│ ./ledger update                                                         │
+│   → Pull fresh positions from MT5, merge with closed trades            │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌─ HELP ─────────────────────────────────────────────────────────────────┐
+│ ./ledger help                                                           │
+│   → Full command reference                                              │
+└────────────────────────────────────────────────────────────────────────┘
+
+╔════════════════════════════════════════════════════════════════════════╗
+║                          TYPICAL DAY FLOW                              ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+1. Trade in MT5 (enter/close positions normally)
+
+2a. SET SL (one-time):
+    ./ledger sl 4100 XAUUSD
+
+2b. OR TRAIL SL (live):
+    ./ledger trail 2.0
+    → Runs until you press Q
+
+3. After closing all legs in MT5:
+    ./ledger close XAUUSD BUY "TP hit at 4125" "my_signal"
+
+4. Later, refine details:
+    ./ledger edit
+
+5. Check for new open positions:
+    ./ledger update
+
+6. View your trades anytime:
+    ./ledger view
+
+╔════════════════════════════════════════════════════════════════════════╗
+║                         CSV STRUCTURE                                  ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+File: ledger.csv
+Columns:
+  • symbol, side, num_trades, open_time, first_trade
+  • avg_entry_price, current_price, avg_xir_price, total_volume
+  • pnl, risk_reward_ratio, wallet_at_entry, total_capital
+  • status (OPEN or CLOSED)
+  • rationale (🖊️ YOU EDIT THIS)
+  • followed_from (🖊️ YOU EDIT THIS)
+  • ticket_ids
+
+╔════════════════════════════════════════════════════════════════════════╗
+║                         FILES & DOCS                                   ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+Main command:     ./ledger
+Quick start:      LEDGER_QUICK_START.md
+Full guide:       LEDGER_COMMANDS.md
+Workflow details: LEDGER_WORKFLOW.md
+AGENTS charter:   AGENTS.md
+
+┌──────────────────────────────────────────────────────────────────────┐
+│ All scripts run from /root/numbers, use ./.venv/bin/python internally │
+│ CSV ledger.csv saved in /root/numbers/ledger.csv                     │
+│ gitignore includes state/ (runtime data)                             │
+└──────────────────────────────────────────────────────────────────────┘

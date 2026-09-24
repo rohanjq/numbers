@@ -4,6 +4,10 @@
 The agent should ask these BEFORE/at entry: what confirmation did you see, was
 there at least a 1m rejection, is this with or against the trend, confidence?
 
+This account trades with NO stop loss, so there's no stop-distance to size
+risk from. Instead we snapshot the live MT5 equity at entry (equity_at_trade)
+and use that as the risk basis: R:R on close = pnl / equity_at_trade.
+
 Example:
     python scripts/log_trade.py --ticket 70001 --symbol XAUUSD --side BUY \
         --volume 0.02 --entry 2348.5 --confirmation "1m rejection wick" \
@@ -18,6 +22,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config import Settings          # noqa: E402
+from mt5_bridge import Bridge        # noqa: E402
 import ledger                        # noqa: E402
 
 
@@ -39,13 +44,26 @@ def main() -> int:
     args = ap.parse_args()
 
     s = Settings.load()
+
+    equity_at_trade = None
+    br = Bridge(s)
+    ok, _ = br.connect()
+    if ok:
+        try:
+            equity_at_trade = round(br.account().equity, 2)
+        except Exception:
+            pass
+        br.disconnect()
+
     rid = ledger.add_trade(
         s, ticket=args.ticket, symbol=args.symbol, side=args.side,
         volume=args.volume, entry=args.entry, sl=args.sl, tp=args.tp,
         confirmation=args.confirmation, rejection_1m=args.rejection,
         trend=args.trend, confidence=args.confidence, notes=args.notes,
+        equity_at_trade=equity_at_trade,
     )
-    print(f"Logged trade #{rid} ({args.symbol.upper()} {args.side.upper()}).")
+    eq_note = f" (equity at entry: ${equity_at_trade:.2f})" if equity_at_trade else ""
+    print(f"Logged trade #{rid} ({args.symbol.upper()} {args.side.upper()}){eq_note}.")
     print("Ledger summary:", ledger.summary(s))
     return 0
 

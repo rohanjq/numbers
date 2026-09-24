@@ -1,0 +1,2 @@
+symbol,side,num_trades,open_time,first_trade,avg_entry_price,current_price,avg_xir_price,total_volume,pnl,risk_reward_ratio,wallet_at_entry,total_capital,status,rationale,followed_from,ticket_ids
+BTCUSDT,SELL,18,2026-07-08T10:27:03,2026-07-08T10:27:03,62070.89,,62070.89,0.78,90.39,0.3387,1000.0,1266.91,CLOSED,"SL triggered at 61922.2, 18 legs avg entry 62070.89",my_signal,"48701162,48701169,48701193,48701202,48701210,48701220,48701234,48701256,48701263,48701270,48701273,48701314,48702459,48702489,48702511,48702522,48702551,48702556"
